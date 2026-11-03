@@ -286,7 +286,8 @@ case "$group" in
 JS
     )
     export SIM_EXTENSION_KEY="${extension_identity%%$'\n'*}"
-    export BROWSER_EXTENSION_IDS="${extension_identity#*$'\n'}"
+    new_tab_id=$(bun -p "require('./lib/navigation/browser-extension').SIM_NEW_TAB_ID")
+    export BROWSER_EXTENSION_IDS="${extension_identity#*$'\n'},$new_tab_id"
     start_app "$group" 3007 'browser extension' record-http-status
     wait_for_browsers
     EXTENSION_APP_E2E_BASE_URL="$local_app_url" \

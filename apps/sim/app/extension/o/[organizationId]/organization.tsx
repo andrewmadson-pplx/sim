@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { generateId } from '@sim/utils/id'
 import { useQueryState } from 'nuqs'
 import { isApiClientError } from '@/lib/api/client/errors'
+import { SIM_NEW_TAB_PATH } from '@/lib/navigation/browser-extension'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { ExtensionHeader } from '@/app/extension/[workspaceId]/header'
@@ -22,12 +23,18 @@ import { useOrganizationSummary } from '@/hooks/queries/organization'
 
 interface ExtensionOrganizationProps {
   context: OrganizationSurfaceContext
+  newTab?: { userName: string }
 }
 
-export function ExtensionOrganization({ context }: ExtensionOrganizationProps) {
+export function ExtensionOrganization({ context, newTab }: ExtensionOrganizationProps) {
   const access = useOrganizationSummary(context.organization.id)
-  const history = useOrganizationMothershipChats(context.organization.id)
-  const denied = [access.error, history.error].find(
+  const [selectedChatId, setSelectedChatId] = useQueryState(
+    extensionChatParam.key,
+    extensionChatParam.parser
+  )
+  const needsHistory = !newTab || Boolean(selectedChatId)
+  const history = useOrganizationMothershipChats(context.organization.id, 'active', needsHistory)
+  const denied = [access.error, needsHistory ? history.error : null].find(
     (error) => isApiClientError(error) && [401, 403, 404].includes(error.status)
   )
   if (isApiClientError(denied) && denied.status === 401) return <ExtensionSignIn />
@@ -36,9 +43,10 @@ export function ExtensionOrganization({ context }: ExtensionOrganizationProps) {
     return (
       <ExtensionUnavailable
         scope='organization'
+        backHref={newTab ? SIM_NEW_TAB_PATH : undefined}
         onRetry={() => {
           void access.refetch()
-          void history.refetch()
+          if (needsHistory) void history.refetch()
         }}
       />
     )
@@ -46,24 +54,34 @@ export function ExtensionOrganization({ context }: ExtensionOrganizationProps) {
   return (
     <OrganizationProvider context={refreshedContext}>
       <SettingsLoader />
-      <ExtensionOrganizationChat context={refreshedContext} history={history} />
+      <ExtensionOrganizationChat
+        context={refreshedContext}
+        history={history}
+        newTab={newTab}
+        selectedChatId={selectedChatId}
+        setSelectedChatId={setSelectedChatId}
+      />
     </OrganizationProvider>
   )
 }
 
 interface ExtensionOrganizationChatProps extends ExtensionOrganizationProps {
   history: ReturnType<typeof useOrganizationMothershipChats>
+  selectedChatId: string | null
+  setSelectedChatId: (id: string | null) => void
 }
 
-function ExtensionOrganizationChat({ context, history }: ExtensionOrganizationChatProps) {
+function ExtensionOrganizationChat({
+  context,
+  history,
+  newTab,
+  selectedChatId,
+  setSelectedChatId,
+}: ExtensionOrganizationChatProps) {
   const [, setResource] = useQueryState(resourceParam.key, {
     ...resourceParam.parser,
     ...resourceUrlKeys,
   })
-  const [selectedChatId, setSelectedChatId] = useQueryState(
-    extensionChatParam.key,
-    extensionChatParam.parser
-  )
   const [captureChatId, setCaptureChatId] = useState(selectedChatId)
   const [initialChatId, setInitialChatId] = useState(selectedChatId)
   const [submittedMode, setSubmittedMode] = useState<ChatRequestMode | null>(null)
@@ -88,7 +106,13 @@ function ExtensionOrganizationChat({ context, history }: ExtensionOrganizationCh
     : undefined
   if (initialChatId && !history.data && history.isPending) return <ExtensionLoading />
   if (initialChatId && !selectedChat)
-    return <ExtensionUnavailable scope='chat' onRetry={() => void history.refetch()} />
+    return (
+      <ExtensionUnavailable
+        scope='chat'
+        backHref={newTab ? SIM_NEW_TAB_PATH : undefined}
+        onRetry={() => void history.refetch()}
+      />
+    )
   const requestMode = initialChatId
     ? selectedChat?.mode
     : (submittedMode ?? (context.canBuild ? 'agent' : 'assistant'))
@@ -96,7 +120,11 @@ function ExtensionOrganizationChat({ context, history }: ExtensionOrganizationCh
     return history.isFetching ? (
       <ExtensionLoading />
     ) : (
-      <ExtensionUnavailable scope='chat' onRetry={() => void history.refetch()} />
+      <ExtensionUnavailable
+        scope='chat'
+        backHref={newTab ? SIM_NEW_TAB_PATH : undefined}
+        onRetry={() => void history.refetch()}
+      />
     )
   if (
     !context.mothershipAvailable ||
@@ -105,6 +133,7 @@ function ExtensionOrganizationChat({ context, history }: ExtensionOrganizationCh
     return (
       <ExtensionUnavailable
         scope='chat'
+        backHref={newTab ? SIM_NEW_TAB_PATH : undefined}
         onBackToChat={
           context.mothershipAvailable && (context.canBuild || context.searchAccess.memberScoped)
             ? () => selectChat(null)
@@ -112,6 +141,27 @@ function ExtensionOrganizationChat({ context, history }: ExtensionOrganizationCh
         }
       />
     )
+  const onChatIdResolved = (chatId: string) => {
+    setCaptureChatId(chatId)
+    void setSelectedChatId(chatId)
+  }
+  if (newTab) {
+    return (
+      <OrganizationConversation
+        key={composerKey}
+        userName={newTab.userName}
+        chatId={initialChatId ?? undefined}
+        requestMode={requestMode}
+        panelOptions={{
+          homeLayout: true,
+          draftNamespace: 'new-tab',
+          onChatIdResolved,
+          onNavigateToChat: selectChat,
+          onSubmitted: () => setSubmittedMode(requestMode),
+        }}
+      />
+    )
+  }
   return (
     <ExtensionOrganizationConversation
       key={composerKey}
@@ -123,15 +173,13 @@ function ExtensionOrganizationChat({ context, history }: ExtensionOrganizationCh
       requestMode={requestMode}
       onSelectChat={selectChat}
       onCommitMode={() => setSubmittedMode(requestMode)}
-      onChatIdResolved={(chatId) => {
-        setCaptureChatId(chatId)
-        void setSelectedChatId(chatId)
-      }}
+      onChatIdResolved={onChatIdResolved}
     />
   )
 }
 
-interface ExtensionOrganizationConversationProps extends ExtensionOrganizationChatProps {
+interface ExtensionOrganizationConversationProps
+  extends Omit<ExtensionOrganizationChatProps, 'selectedChatId' | 'setSelectedChatId'> {
   scopeKey: string
   initialChatId?: string
   selectedChatId?: string

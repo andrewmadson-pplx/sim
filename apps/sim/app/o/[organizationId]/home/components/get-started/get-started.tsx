@@ -5,6 +5,7 @@ import { cn } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import { HomeSection } from '@/components/home/home-section'
 import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
+import { useSettingsNavigationTarget } from '@/components/settings/settings-navigation-provider'
 import { OAUTH_SEARCH_READ_SCOPE, oauthScopeSatisfies } from '@/lib/auth/oauth-provider'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import {
@@ -74,6 +75,7 @@ function StepMark({ complete }: { complete: boolean }) {
  * and reads as done from the organization's real state: a configured integration and an OAuth app authorized to use Search.
  */
 export function GetStarted() {
+  const target = useSettingsNavigationTarget()
   const { organization, viewer, connectedAccountsAvailable } = useOrganizationContext()
   const routes = organizationRoutes(organization.id)
   const canConnectIntegrations = viewer.canConnectSearchIntegrations && connectedAccountsAvailable
@@ -205,6 +207,8 @@ export function GetStarted() {
           <SettingsGuardedLink
             key={step.id}
             href={hrefs[step.id]}
+            target={target}
+            rel={target === '_blank' ? 'noopener noreferrer' : undefined}
             className={cn(ROW_CLASS, i > 0 && 'border-t')}
           >
             <StepMark complete={complete} />

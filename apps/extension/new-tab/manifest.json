@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Sim New Tab",
+  "version": "1.0.1",
+  "description": "Use Sim as your new tab. Start a conversation on your Sim Home and restore your previous new tab at any time.",
+  "minimum_chrome_version": "120",
+  "chrome_url_overrides": {
+    "newtab": "new-tab.html"
+  },
+  "host_permissions": ["https://www.sim.ai/*"],
+  "icons": {
+    "16": "icon-16.png",
+    "32": "icon-32.png",
+    "128": "icon-128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; frame-src https://www.sim.ai; object-src 'none'; base-uri 'none'"
+  },
+  "incognito": "not_allowed",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlLrnStSCUAxAqJtxIbDrYqsSZ3yptVY2Z+mczFJmBw8rzTSbPPlE8K2EM+TW9U6i6l/iMdPaxTgnb4Ey/0SDcD5U8PcvnQlIcABZ1cdVt4QdfeseMvAnQZ6AbaxEBVjiIO9Y09ubYX72fE0Jlf0ZXaYxuR3bhpRr2bJKM+Ad83vxLJlhnUE67AoVjCR0hsYGdHxA/UQ0SoDYQGn1JUMQf+EUE2o8Vkw5zN/qX/5yEyk+TGjdfMDKC0+kvtrW3AEBYBvbKY7IKQ7MYhK8OJX99WID6dkG37y369ZZxIXVEFF3uT44HLUJBy1YmWemeuYhilljCxOZ/l/6D7FURBzcJQIDAQAB"
+}

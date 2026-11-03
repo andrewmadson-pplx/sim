@@ -14,7 +14,11 @@ import ExtensionLoading from '@/app/extension/loading'
 import { ExtensionSignIn } from '@/app/extension/sign-in'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
-export function ExtensionWorkspaces() {
+interface ExtensionWorkspacesProps {
+  openInApp?: boolean
+}
+
+export function ExtensionWorkspaces({ openInApp = false }: ExtensionWorkspacesProps) {
   const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null)
   const scrollEdges = useScrollEdges(scrollElement)
   const { data: workspaces, isPending, error, refetch } = useWorkspacesQuery()
@@ -40,7 +44,13 @@ export function ExtensionWorkspaces() {
             {workspaces.map((workspace) => (
               <ChipLink
                 key={workspace.id}
-                href={`/extension/${encodeURIComponent(workspace.id)}`}
+                href={
+                  openInApp
+                    ? `/workspace/${encodeURIComponent(workspace.id)}/home`
+                    : `/extension/${encodeURIComponent(workspace.id)}`
+                }
+                target={openInApp ? '_blank' : undefined}
+                rel={openInApp ? 'noopener noreferrer' : undefined}
                 variant='border'
               >
                 {workspace.name}

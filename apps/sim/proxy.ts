@@ -7,9 +7,10 @@ import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
 import { resolveSimMcpHostPath } from '@/lib/api/mcp/host-routing'
 import { SIM_MCP_ROUTE_PATH } from '@/lib/api/mcp/urls'
-import { getBrowserExtensionOrigins } from '@/lib/core/security/extension'
+import { getBrowserExtensionOrigins, getNewTabOrigins } from '@/lib/core/security/extension'
 import { isMarketingPath } from '@/lib/landing/routes'
 import { isAuthSurfacePath } from '@/lib/navigation/auth-surfaces'
+import { SIM_NEW_TAB_PATH } from '@/lib/navigation/browser-extension'
 import { APP_ENTRY_PATH, isAppSurfacePath, isNoindexPath } from '@/lib/navigation/paths'
 import { isOAuthAuthorizationCallback, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
 import { getEnv } from './lib/core/config/env'
@@ -411,7 +412,9 @@ export function proxy(request: NextRequest) {
     const response = NextResponse.next()
     response.headers.set(
       'Content-Security-Policy',
-      generateRuntimeCSP(getBrowserExtensionOrigins())
+      generateRuntimeCSP(
+        url.pathname === SIM_NEW_TAB_PATH ? getNewTabOrigins() : getBrowserExtensionOrigins()
+      )
     )
     response.headers.set('X-Content-Type-Options', 'nosniff')
     response.headers.set('Cache-Control', 'private, no-store')

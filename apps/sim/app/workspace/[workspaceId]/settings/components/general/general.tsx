@@ -6,6 +6,7 @@ import {
   Button,
   Chip,
   ChipCombobox,
+  ChipLink,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -459,6 +460,18 @@ export function General() {
               </div>
             </div>
 
+            {hosted && (
+              <div className='flex items-center justify-between gap-2'>
+                <Label>New tab page</Label>
+                <ChipLink
+                  href='https://docs.sim.ai/browser-extension#use-sim-as-your-new-tab'
+                  target='_blank'
+                  rel='noopener noreferrer'
+                >
+                  Use Sim as my new tab
+                </ChipLink>
+              </div>
+            )}
             <div className='flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-4'>
               <Label>Timezone</Label>
               <div className={DROPDOWN_TRIGGER_CLASS}>

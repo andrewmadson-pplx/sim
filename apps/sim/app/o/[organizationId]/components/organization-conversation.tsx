@@ -92,18 +92,19 @@ interface OrganizationConversationProps {
   requestMode: ChatRequestMode
   header?: ReactNode
   panelOptions?: {
-    header: ReactNode
+    homeLayout?: boolean
+    header?: ReactNode
     attachments?: ReactNode
     resourceActions?: ReactNode
     toolbarActions?: ReactNode
     modelSelectorOptions?: ModelSelectorOptions
     onChatIdResolved: (chatId: string) => void
     onNavigateToChat: (chatId: string) => void
-    prepareSubmission: (
+    prepareSubmission?: (
       message: string,
       contexts?: ChatContext[]
     ) => { message: string; contexts?: ChatContext[] } | false
-    onSubmitted: () => void
+    onSubmitted?: () => void
     draftNamespace: string
   }
 }
@@ -140,7 +141,8 @@ function OrganizationConversationContent({
   panelOptions,
 }: OrganizationConversationProps) {
   const { organization, canBuild } = useOrganizationContext()
-  const compact = Boolean(panelOptions)
+  const embedded = Boolean(panelOptions)
+  const compact = embedded && !panelOptions?.homeLayout
   const { data: session } = useSession()
   const userId = session?.user?.id
   const planEnabled = useFeatureFlag('mothership-plan-mode')
@@ -173,7 +175,7 @@ function OrganizationConversationContent({
       ? { projectsDesktopTabs: false, onChatIdResolved: panelOptions.onChatIdResolved }
       : {}),
   })
-  const newDraftId = !compact && destinationMode === 'assistant' ? 'search-assistant' : 'home'
+  const newDraftId = !panelOptions && destinationMode === 'assistant' ? 'search-assistant' : 'home'
   const draftPrefix = panelOptions ? `${panelOptions.draftNamespace}:` : ''
   const initialDraftKey = `${draftPrefix}${userId}:organization:${organization.id}:${chatId ?? newDraftId}`
   const draftKey = `${draftPrefix}${userId}:organization:${organization.id}:${chat.resolvedChatId ?? chatId ?? newDraftId}`
@@ -221,7 +223,7 @@ function OrganizationConversationContent({
   const addResource = panel.addResourceFromUser
   /** Restore an explicitly selected results tab before the first turn; closing it clears the URL. */
   useEffect(() => {
-    if (compact || hasChat || !q.trim()) return
+    if (embedded || hasChat || !q.trim()) return
     const resource = createSearchResource({
       scope: { kind: 'organization', organizationId: organization.id },
       query: q.trim(),
@@ -244,15 +246,15 @@ function OrganizationConversationContent({
     controller.activeResourceParam,
     chat.resources,
     addResource,
-    compact,
+    embedded,
   ])
   const selectResource = async (ref: WorkspaceResourceRef) => {
     if (!ref.workspaceId) {
       toast.error('This resource has no workspace address.')
       return
     }
-    const destination = panelOptions ? window.open('about:blank', '_blank') : null
-    if (panelOptions && !destination) {
+    const destination = compact ? window.open('about:blank', '_blank') : null
+    if (compact && !destination) {
       toast.error('Allow pop-ups to open this resource in Sim.')
       return
     }
@@ -343,7 +345,7 @@ function OrganizationConversationContent({
   }, [active, summaryRequest, onSummaryConsumed, sendMessage])
 
   useEffect(() => {
-    if (compact || chatId) return
+    if (embedded || chatId) return
     const handoff = MothershipHandoffStorage.consume(
       { organizationId: organization.id },
       undefined,
@@ -363,7 +365,7 @@ function OrganizationConversationContent({
         ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
       })
     }
-  }, [compact, chatId, organization.id, requestMode, sendMessage, assistantSearchLevel])
+  }, [embedded, chatId, organization.id, requestMode, sendMessage, assistantSearchLevel])
 
   const send = (
     message: string,
@@ -373,7 +375,7 @@ function OrganizationConversationContent({
   ) => {
     if (requestMode !== 'assistant' && !canBuild) return
     if (requestMode === 'assistant') recordQuery(message)
-    if (requestMode !== 'assistant' && !panelOptions) panel.prepareResourceViewForAgentTurn()
+    if (requestMode !== 'assistant' && !compact) panel.prepareResourceViewForAgentTurn()
     void sendMessage(message, fileAttachments, contexts, {
       requestMode,
       ...(requestMode === 'assistant' ? { assistantSearchLevel } : {}),
@@ -398,9 +400,10 @@ function OrganizationConversationContent({
         return false
       }
     }
-    const submission = panelOptions
-      ? panelOptions.prepareSubmission(text.trim(), contexts)
-      : { message: text.trim(), contexts }
+    const submission = panelOptions?.prepareSubmission?.(text.trim(), contexts) ?? {
+      message: text.trim(),
+      contexts,
+    }
     if (submission === false) return false
     const { message } = submission
     const attachments: FileAttachmentForApi[] = files.attachedFiles.flatMap((file) =>
@@ -420,7 +423,7 @@ function OrganizationConversationContent({
     if (!message && !attachments.length) return false
     useMothershipDraftsStore.getState().clearDraft(draftKey)
     send(message, attachments.length ? attachments : undefined, submission.contexts)
-    panelOptions?.onSubmitted()
+    panelOptions?.onSubmitted?.()
     setRestoredContexts([])
     files.clearAttachedFiles()
   }
@@ -452,7 +455,7 @@ function OrganizationConversationContent({
   const composer = (
     <Composer
       requestMode={requestMode}
-      compact={Boolean(panelOptions)}
+      compact={compact}
       attachments={panelOptions?.attachments}
       resourceActions={panelOptions?.resourceActions}
       toolbarActions={panelOptions?.toolbarActions}
@@ -487,7 +490,7 @@ function OrganizationConversationContent({
     <div
       className={cn(
         'flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--bg)]',
-        !panelOptions && 'md:min-w-[min(480px,50%)]'
+        !compact && 'md:min-w-[min(480px,50%)]'
       )}
     >
       {hasChat ? (
@@ -501,7 +504,7 @@ function OrganizationConversationContent({
           <MothershipChat
             reserveResourceHeader={!header}
             onNavigateToChat={panelOptions?.onNavigateToChat}
-            layout={panelOptions ? 'copilot-view' : undefined}
+            layout={compact ? 'copilot-view' : undefined}
             onViewSources={(messageId, requestId) =>
               addResource({
                 type: 'sources',
@@ -530,10 +533,10 @@ function OrganizationConversationContent({
             chatId={chat.resolvedChatId}
             composer={composer}
             onWorkspaceResourceSelect={requestMode !== 'assistant' ? selectResource : undefined}
-            initialScrollBlocked={!panelOptions && panel.initialScrollBlocked}
+            initialScrollBlocked={!compact && panel.initialScrollBlocked}
           />
         </AssistantActionReviewProvider>
-      ) : panelOptions ? (
+      ) : compact ? (
         <>
           <div className='flex flex-1 items-center justify-center px-5'>
             <h1 className='text-lg'>How can I help?</h1>
@@ -565,7 +568,7 @@ function OrganizationConversationContent({
       )}
     </div>
   )
-  if (panelOptions) {
+  if (panelOptions && compact) {
     const sourceResource = chat.resources.find(
       (resource) => resource.type === 'sources' && resource.id === controller.activeResourceParam
     )

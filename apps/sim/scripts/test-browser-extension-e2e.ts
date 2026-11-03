@@ -26,6 +26,7 @@ import { generateRandomHex } from '@sim/utils/random'
 import postgres from 'postgres'
 import { chatContextsSchema } from '@/lib/api/contracts/mothership-chat-context'
 import { MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
+import { SIM_NEW_TAB_ID } from '@/lib/navigation/browser-extension'
 
 /** Authenticated packaged-browser acceptance against a real local Sim app and disposable Postgres. */
 const logger = createLogger('BrowserExtensionAppE2E')
@@ -582,6 +583,19 @@ try {
                 })
             )
             .toBe(true)
+          if (width === 320) {
+            const chip = attachments().first()
+            const visible = await chip.screenshot({ animations: 'disabled' })
+            const withoutEdgeMask = await chip.screenshot({
+              animations: 'disabled',
+              style:
+                'div:has(> div > [aria-label="Page attached to next message"]) { mask-image: none !important; }',
+            })
+            assert(
+              visible.equals(withoutEdgeMask),
+              'The attachment strip faded a fully visible chip'
+            )
+          }
           await screenshot(`${theme}-${width}-attached`)
           if (theme === 'light' && width === 320) {
             await frame()
@@ -1217,6 +1231,108 @@ try {
     )
     assert.equal(active.status(), 200)
   }
+  await checkNative(
+    'Installing and removing Sim New Tab preserves the previous provider and the chat extension',
+    async () => {
+      const isolated = await chromium.launchPersistentContext(
+        resolve(temporary, 'new-tab-profile'),
+        {
+          channel: 'chromium',
+          headless: true,
+          ignoreDefaultArgs: ['--disable-extensions'],
+          args: ['--enable-unsafe-extension-debugging'],
+          viewport: { width: 1280, height: 800 },
+        }
+      )
+      const browser = isolated.browser()
+      assert(browser)
+      const cdp = await browser.newBrowserCDPSession()
+      let ntp = await isolated.newPage()
+      const previous = resolve(temporary, 'previous-new-tab')
+      const companion = resolve(temporary, 'new-tab')
+      const nextTab = async () => {
+        await ntp.close()
+        ntp = await isolated.newPage()
+        await ntp.goto('chrome://newtab/')
+      }
+      await mkdir(previous)
+      await writeFile(
+        resolve(previous, 'manifest.json'),
+        JSON.stringify({
+          manifest_version: 3,
+          name: 'Previous new tab fixture',
+          version: '1.0',
+          chrome_url_overrides: { newtab: 'index.html' },
+        })
+      )
+      await writeFile(resolve(previous, 'index.html'), '<title>Previous new tab fixture</title>')
+      const build = spawnSync(
+        process.execPath,
+        ['scripts/build-new-tab.ts', `--outdir=${companion}`],
+        { cwd: extensionRoot, encoding: 'utf8' }
+      )
+      assert.equal(build.status, 0, build.stderr)
+      const manifestPath = resolve(companion, 'manifest.json')
+      const htmlPath = resolve(companion, 'new-tab.html')
+      const manifest = JSON.parse(
+        (await readFile(manifestPath, 'utf8')).replaceAll('https://www.sim.ai', base.origin)
+      )
+      await writeFile(manifestPath, JSON.stringify(manifest))
+      await writeFile(
+        htmlPath,
+        (await readFile(htmlPath, 'utf8')).replaceAll('https://www.sim.ai', base.origin)
+      )
+      try {
+        const chat = await cdp.send('Extensions.loadUnpacked', { path: extensionPath })
+        assert.equal(chat.id, extensionId)
+        await nextTab()
+        const originalTitle = await ntp.title()
+        const installPrevious = await cdp.send('Extensions.loadUnpacked', { path: previous })
+        await nextTab()
+        await expect(ntp).toHaveTitle('Previous new tab fixture')
+        const install = await cdp.send('Extensions.loadUnpacked', { path: companion })
+        assert.equal(install.id, SIM_NEW_TAB_ID)
+        await nextTab()
+        await expect(ntp).toHaveTitle('Sim Home')
+        const home = ntp.frameLocator('iframe[title="Sim Home"]')
+        await expect(home.getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
+        await isolated.addCookies(await browserContext.cookies(base.origin))
+        await ntp.reload()
+        await expect(home.getByRole('heading', { name: /What should we get done/ })).toBeVisible({
+          timeout: 120_000,
+        })
+        await expect(home.getByRole('textbox', { name: 'Ask Sim', exact: true })).toBeVisible()
+        await expect(home.getByRole('button', { name: 'Attach current page' })).toHaveCount(0)
+        const photo = `${report}.new-tab-home.png`
+        await ntp.setViewportSize({ width: 1280, height: 800 })
+        await ntp.screenshot({ path: photo, animations: 'disabled' })
+        screenshots.push(photo)
+        const draft = home.getByRole('textbox', { name: 'Ask Sim', exact: true })
+        await draft.fill('Compare the launch notes')
+        const documentStart = await draft.evaluate(() => performance.timeOrigin)
+        await isolated.setOffline(true)
+        await expect(ntp.getByRole('status')).toContainText("You're offline")
+        await expect(ntp.getByRole('button', { name: 'Restore previous new tab' })).toBeVisible()
+        await isolated.setOffline(false)
+        await expect(home.getByRole('textbox', { name: 'Ask Sim', exact: true })).toBeVisible()
+        await expect(draft).toHaveValue('Compare the launch notes')
+        assert.equal(await draft.evaluate(() => performance.timeOrigin), documentStart)
+        await cdp.send('Extensions.uninstall', { id: install.id })
+        await nextTab()
+        await expect(ntp).toHaveTitle('Previous new tab fixture')
+        await cdp.send('Extensions.uninstall', { id: installPrevious.id })
+        await nextTab()
+        await expect(ntp).toHaveTitle(originalTitle)
+        const installed = await cdp.send('Extensions.getExtensions')
+        assert(installed.extensions.some((entry) => entry.id === extensionId && entry.enabled))
+      } finally {
+        await isolated.setOffline(false)
+        await ntp.close()
+        await cdp.detach()
+        await isolated.close()
+      }
+    }
+  )
   await checkNative(
     'A shared workspace returns to the viewer’s own organization chat',
     async () => {

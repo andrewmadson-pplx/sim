@@ -44,7 +44,7 @@ function richText(content: string): ReactNode {
 export const PRIVACY_CONFIG: LegalPageConfig = {
   title: 'Privacy Policy',
   description: 'Sim Studio, Inc. · Operating the Sim platform (sim.ai)',
-  lastUpdated: 'November 2, 2026',
+  lastUpdated: 'November 3, 2026',
   intro: [
     {
       kind: 'paragraph',
@@ -803,6 +803,12 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
       id: 'browser-extension',
       heading: '10B. Sim Browser Extension',
       blocks: [
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Sim New Tab is a separate, optional extension. Opening a new tab loads Sim Home from www.sim.ai using Your existing Sim session. It does not request access to other sites, browsing history, bookmarks, or the contents of Your other tabs. Organization access and conversations use the same controls as Sim Home. Removing Sim New Tab restores Chrome’s previous new tab provider without removing the Sim chat extension.'
+          ),
+        },
         {
           kind: 'paragraph',
           content: richText(

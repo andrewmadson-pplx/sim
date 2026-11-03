@@ -62,6 +62,14 @@ bun run --cwd apps/sim test:browser-extension:e2e
 
 Configure the matching extension ID in the running app. The suite builds into a temporary directory, creates its own accounts/workspaces, and removes them afterward; it leaves the shipping `dist` untouched. It verifies real authentication, workspace denial, page limits, navigation, source links, clipboard writes, actual replay-recorder exclusion, themes, widths, and sign-out. CI provisions this isolated environment in the shared HTTP acceptance matrix, using the same production build as the other app suites. The packaged extension transport suite runs separately. Set `EXTENSION_APP_E2E_LIVE_CHAT=1` when the app is connected to a working local Mothership instance to additionally verify live rendering, saved page context, queue editing, and drafts through chat admission. Provider credentials belong only in that server's environment. Reports and screenshots are written beside the supplied report path. Native toolbar/shortcut/context-menu and permission-prompt checks remain manual release checks.
 
+## Optional new tab
+
+Sim New Tab is a separate Chrome Web Store item. Build its package with `bun run --cwd apps/extension build:new-tab`; distribute **only** the contents of `apps/extension/dist-new-tab` for this item. The chat package has no new-tab override. The companion registers only the new-tab override and access to www.sim.ai so Chrome can use the user's signed-in session in the embedded Home. It has no worker, capture, history, bookmarks, or storage permissions. Its bundled restore action opens Chrome’s uninstall confirmation for the companion alone.
+
+For a local acceptance run, include the companion ID from `apps/sim/lib/navigation/browser-extension.ts` in `BROWSER_EXTENSION_IDS` alongside the test chat ID.
+
+The hosted `/extension/new-tab` route accepts framing only from the companion’s assigned store ID. Deploy and verify that route before submitting the companion; distribute its install link after the store listing is public. [User and administrator guide](https://docs.sim.ai/browser-extension).
+
 ## Distribution
 
 Publish only the production contents of `dist`, after rebuilding against the deployed Sim origin and configuring the issued store extension ID on that server. The store listing and privacy disclosure must describe that page text is sent to Sim when attached and used in a conversation, and link to the applicable Sim privacy policy. Keep the publisher account protected with hardware-backed MFA and limited release access.

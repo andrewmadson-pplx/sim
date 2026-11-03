@@ -350,9 +350,11 @@ export function useMothershipChats(
 /** Private organization conversations use their own cache scope and current membership. */
 export function useOrganizationMothershipChats(
   organizationId: string,
-  scope: MothershipChatScope = 'active'
+  scope: MothershipChatScope = 'active',
+  enabled = true
 ) {
   return useQuery({
+    enabled,
     queryKey: mothershipChatKeys.organizationList(organizationId, scope),
     queryFn: async ({ signal }) => {
       const data = await requestJson(listMothershipChatsContract, {

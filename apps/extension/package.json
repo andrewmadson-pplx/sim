@@ -6,6 +6,7 @@
   "license": "Apache-2.0",
   "scripts": {
     "build": "bun scripts/build.ts",
+    "build:new-tab": "bun scripts/build-new-tab.ts",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
