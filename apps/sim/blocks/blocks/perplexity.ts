@@ -4,9 +4,9 @@ import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/b
 export const PerplexityBlock: BlockConfig = {
   type: 'perplexity',
   name: 'Perplexity',
-  description: 'Use Perplexity AI for chat and search',
+  description: 'Use Perplexity AI for chat, search and agent runs',
   longDescription:
-    'Generate completions using Perplexity AI chat models or perform web searches with advanced filtering.',
+    'Generate completions using Perplexity AI chat models, perform web searches with advanced filtering, or run Perplexity and third-party models with built-in web search and URL fetch through the Agent API.',
   authMode: AuthMode.ApiKey,
   docsLink: 'https://docs.sim.ai/integrations/perplexity',
   category: 'tools',
@@ -21,6 +21,10 @@ export const PerplexityBlock: BlockConfig = {
         perplexity_chat: [
           { text: 'Answer', field: 'content', core: true },
           { text: 'using', field: 'model' },
+        ],
+        perplexity_agent: [
+          { text: 'Answer', field: 'content', core: true },
+          { text: 'using', field: 'agentModel' },
         ],
         perplexity_search: [
           { text: 'Search the web for', field: 'query', core: true },
@@ -38,6 +42,7 @@ export const PerplexityBlock: BlockConfig = {
       options: [
         { label: 'Chat', id: 'perplexity_chat' },
         { label: 'Search', id: 'perplexity_search' },
+        { label: 'Agent', id: 'perplexity_agent' },
       ],
       value: () => 'perplexity_chat',
     },
@@ -47,7 +52,7 @@ export const PerplexityBlock: BlockConfig = {
       title: 'System Prompt',
       type: 'long-input',
       placeholder: 'System prompt to guide the model behavior...',
-      condition: { field: 'operation', value: 'perplexity_chat' },
+      condition: { field: 'operation', value: ['perplexity_chat', 'perplexity_agent'] },
     },
     {
       id: 'content',
@@ -55,7 +60,7 @@ export const PerplexityBlock: BlockConfig = {
       type: 'long-input',
       placeholder: 'Enter your prompt here...',
       required: true,
-      condition: { field: 'operation', value: 'perplexity_chat' },
+      condition: { field: 'operation', value: ['perplexity_chat', 'perplexity_agent'] },
     },
     {
       id: 'model',
@@ -84,7 +89,44 @@ export const PerplexityBlock: BlockConfig = {
       title: 'Max Tokens',
       type: 'short-input',
       placeholder: 'Maximum number of tokens',
-      condition: { field: 'operation', value: 'perplexity_chat' },
+      condition: { field: 'operation', value: ['perplexity_chat', 'perplexity_agent'] },
+    },
+    // Agent operation inputs
+    {
+      id: 'agentModel',
+      title: 'Model',
+      type: 'combobox',
+      placeholder: 'Type or select a model...',
+      options: [
+        { label: 'Sonar', id: 'perplexity/sonar' },
+        { label: 'GPT-5.5', id: 'openai/gpt-5.5' },
+      ],
+      defaultValue: 'perplexity/sonar',
+      required: true,
+      condition: { field: 'operation', value: 'perplexity_agent' },
+    },
+    {
+      id: 'web_search',
+      title: 'Web Search',
+      type: 'switch',
+      defaultValue: true,
+      condition: { field: 'operation', value: 'perplexity_agent' },
+    },
+    {
+      id: 'fetch_url',
+      title: 'Fetch URLs',
+      type: 'switch',
+      description: 'Let the agent read the full content of URLs',
+      condition: { field: 'operation', value: 'perplexity_agent' },
+      mode: 'advanced',
+    },
+    {
+      id: 'max_steps',
+      title: 'Max Steps',
+      type: 'short-input',
+      placeholder: '3',
+      condition: { field: 'operation', value: 'perplexity_agent' },
+      mode: 'advanced',
     },
     // Search operation inputs
     {
@@ -190,7 +232,7 @@ Return ONLY the date string in MM/DD/YYYY format - no explanations, no quotes, n
     },
   ],
   tools: {
-    access: ['perplexity_chat', 'perplexity_search'],
+    access: ['perplexity_chat', 'perplexity_search', 'perplexity_agent'],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -198,6 +240,8 @@ Return ONLY the date string in MM/DD/YYYY format - no explanations, no quotes, n
             return 'perplexity_chat'
           case 'perplexity_search':
             return 'perplexity_search'
+          case 'perplexity_agent':
+            return 'perplexity_agent'
           default:
             return 'perplexity_chat'
         }
@@ -228,6 +272,19 @@ Return ONLY the date string in MM/DD/YYYY format - no explanations, no quotes, n
           }
 
           return searchParams
+        }
+
+        if (params.operation === 'perplexity_agent') {
+          return {
+            apiKey: params.apiKey,
+            model: params.agentModel,
+            content: params.content,
+            systemPrompt: params.systemPrompt,
+            web_search: params.web_search,
+            fetch_url: params.fetch_url,
+            max_steps: params.max_steps ? Number.parseInt(params.max_steps) : undefined,
+            max_tokens: params.max_tokens ? Number.parseInt(params.max_tokens) : undefined,
+          }
         }
 
         // Chat params (default)
@@ -261,6 +318,11 @@ Return ONLY the date string in MM/DD/YYYY format - no explanations, no quotes, n
     search_recency_filter: { type: 'string', description: 'Recency filter' },
     search_after_date: { type: 'string', description: 'After date filter' },
     search_before_date: { type: 'string', description: 'Before date filter' },
+    // Agent operation inputs
+    agentModel: { type: 'string', description: 'Agent API model' },
+    web_search: { type: 'boolean', description: 'Enable web search' },
+    fetch_url: { type: 'boolean', description: 'Enable URL fetch' },
+    max_steps: { type: 'string', description: 'Maximum agent steps' },
     // Common
     apiKey: { type: 'string', description: 'Perplexity API key' },
   },
@@ -271,6 +333,9 @@ Return ONLY the date string in MM/DD/YYYY format - no explanations, no quotes, n
     usage: { type: 'json', description: 'Token usage' },
     // Search outputs
     results: { type: 'json', description: 'Search results array' },
+    // Agent outputs
+    status: { type: 'string', description: 'Agent run status' },
+    sources: { type: 'json', description: 'Web sources the agent used' },
   },
 }
 
