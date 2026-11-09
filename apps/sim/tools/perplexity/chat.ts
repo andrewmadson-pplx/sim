@@ -61,7 +61,7 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Model to use for chat completions (e.g., "sonar", "sonar-pro", "sonar-reasoning")',
+        'Model to use for chat completions (e.g., "sonar", "sonar-pro", "sonar-reasoning-pro")',
     },
     max_tokens: {
       type: 'number',
